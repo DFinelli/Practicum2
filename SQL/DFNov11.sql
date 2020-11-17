@@ -1,4 +1,3 @@
-USE practicum2;
 /********************************************************************************************************************************/
 
 /*********** TITLE *************/
@@ -23,7 +22,6 @@ Create Table title (
 INSERT INTO title (titleID, titleType, primaryTitle, originalTitle, isAdult, startYear, endYear, runtimeMinutes)
 SELECT tconst, titleType, primaryTitle, originalTitle, isAdult, startYear, endYear, runtimeMinutes
 FROM title_tsv;
-
 SELECT * FROM title;
 DESCRIBE title;
 /********************************************************************************************************************************/
@@ -65,6 +63,14 @@ Create Table person (
     Constraint PK_personID Primary Key (personID)
 );
 
+ALTER TABLE person
+ADD age int;
+
+ALTER TABLE person
+ADD numMovies int;
+
+
+
 SELECT * FROM person;
 
 INSERT INTO person (personID, primaryName, birthYear, deathYear)
@@ -98,18 +104,21 @@ SELECT * from episode_tsv;
 Create Table episode (
 	episodeID int AUTO_INCREMENT,
     titleID varchar(40),
+    parentTconst varchar(40),
     seasonNumber int,
     episodeNumber int,
     Constraint PK_episodeID Primary Key (episodeID),
-    Constraint FK_titleID_e Foreign Key (titleID) References title(titleID)
+    Constraint FK_titleID_e Foreign Key (titleID) References title(titleID),
+    Constraint FK_parentID_e Foreign Key (parentTconst) References title(titleID)
 );
 
-INSERT INTO episode (titleID, seasonNumber, episodeNumber)
-SELECT tconst, seasonNumber, episodeNumber
-FROM episode_tsv etsv INNER JOIN title t ON etsv.tconst = t.titleID;
+INSERT INTO episode (titleID, parentTconst, seasonNumber, episodeNumber)
+SELECT tconst, parentTconst, seasonNumber, episodeNumber
+FROM episode_tsv etsv INNER JOIN title t ON etsv.tconst = t.titleID JOIN title t2 ON etsv.parentTconst = t2.titleID;
 
 SELECT * FROM episode;
 /********************************************************************************************************************************/
+
 
 
 /********************************************************************************************************************************/
@@ -137,20 +146,6 @@ FROM principals_tsv ptsv INNER JOIN title t ON ptsv.tconst = t.titleID INNER JOI
 SELECT * FROM principals;
 /********************************************************************************************************************************/
 
-/*********** Crew - Crew/Director - Crew/Writer *************/
-SELECT * FROM crew_tsv;
-
-Create Table crew (
-	crewID int AUTO_INCREMENT,
-	titleID varchar(40),
-	Constraint PK_crewID Primary Key (crewID),
-	Constraint FK_titleID_c Foreign Key (titleID) References title(titleID)
-);
-
-INSERT INTO crew (titleID)
-SELECT tconst FROM crew_tsv;
-
-SELECT * FROM crew;
 
 Create Table directors (
 	titleID varchar(40),
@@ -160,24 +155,32 @@ Create Table directors (
 
 SELECT * FROM directors;
 
+Create Table writers (
+	titleID varchar(40),
+	personId varchar(40),
+    Constraint personID Primary Key (personID)
+);
+
+SELECT * FROM writers;
+
 /********************************************************************************************************************************/
 
-/*********** Attribute, titleAttribute, AttributeHelper *************/
-SELECT * FROM titleInfo;
+/**** Attribute, titleAttribute, AttributeHelper ******/
 SELECT * FROM akas_tsv;
 
 Create Table attributehelper (
 	titleInfoId varchar(40),
+    ordering int,
     attribute1 varchar(40),
     attribute2 varchar(40),
     attribute3 varchar(40)
 );
 
-INSERT INTO attributehelper(titleInfoId, attribute1, attribute2, attribute3)
-SELECT titleInfoId, SUBSTRING_INDEX(attributes, ' ', 1) AS attribute1,
+INSERT INTO attributehelper(titleInfoId, ordering, attribute1, attribute2, attribute3)
+SELECT titleInfoId, akas_tsv.ordering, SUBSTRING_INDEX(attributes, ' ', 1) AS attribute1,
 SUBSTRING_INDEX(SUBSTRING_INDEX(attributes, ' ', 2), ' ', -1) AS attribute2,
 SUBSTRING_INDEX(attributes, ' ', -1) AS attribute3
-FROM akas_tsv JOIN titleInfo ON akas_tsv.titleID = titleInfo.titleId;
+FROM akas_tsv JOIN titleInfo ON (akas_tsv.titleID = titleInfo.titleId AND akas_tsv.ordering = titleInfo.ordering);
 
 SELECT * FROM attributehelper;
 
@@ -207,73 +210,38 @@ SELECT * FROM attributes;
 Create Table titleInfoAttribute (
 	titleInfoAttributeID int AUTO_INCREMENT,
     titleInfoID int,
+    ordering int,
     attributeID int,
     Constraint PK_titleInfoAttributeID Primary Key (titleInfoAttributeID),
     Constraint FK_titleInfoID_tia Foreign Key (titleInfoID) References titleInfo(titleInfoID),
 	Constraint FK_attributeID_tia Foreign Key (attributeID) References attributes(attributeID)
 );
 
-INSERT INTO titleInfoAttribute(titleInfoID, attributeID)
-SELECT DISTINCT AH.titleInfoId, A.attributeID
+INSERT INTO titleInfoAttribute(titleInfoID, ordering, attributeID)
+SELECT DISTINCT AH.titleInfoId, AH.ordering, A.attributeID
 FROM attributehelper AS AH, attributes AS A
 WHERE NOT EXISTS (SELECT TIA.titleInfoID, TIA.attributeID FROM attributes AS A, titleInfoAttribute AS TIA
-                  WHERE A.attributeID = TIA.attributeID AND  AH.titleInfoId = TIA.titleInfoId)
+                  WHERE A.attributeID = TIA.attributeID AND AH.titleInfoId = TIA.titleInfoId AND AH.ordering = TIA.ordering)
 AND A.attributeText = AH.attribute1;
 
-INSERT INTO titleInfoAttribute(titleInfoID, attributeID)
-SELECT DISTINCT AH.titleInfoId, A.attributeID
+INSERT INTO titleInfoAttribute(titleInfoID, ordering, attributeID)
+SELECT DISTINCT AH.titleInfoId, AH.ordering, A.attributeID
 FROM attributehelper AS AH, attributes AS A
 WHERE NOT EXISTS (SELECT TIA.titleInfoID, TIA.attributeID FROM attributes AS A, titleInfoAttribute AS TIA
-                  WHERE A.attributeID = TIA.attributeID AND  AH.titleInfoId = TIA.titleInfoId)
+                  WHERE A.attributeID = TIA.attributeID AND AH.titleInfoId = TIA.titleInfoId AND AH.ordering = TIA.ordering)
 AND A.attributeText = AH.attribute2;
 
-INSERT INTO titleInfoAttribute(titleInfoID, attributeID)
-SELECT DISTINCT AH.titleInfoId, A.attributeID
+INSERT INTO titleInfoAttribute(titleInfoID, ordering, attributeID)
+SELECT DISTINCT AH.titleInfoId, AH.ordering, A.attributeID
 FROM attributehelper AS AH, attributes AS A
 WHERE NOT EXISTS (SELECT TIA.titleInfoID, TIA.attributeID FROM attributes AS A, titleInfoAttribute AS TIA
-                  WHERE A.attributeID = TIA.attributeID AND  AH.titleInfoId = TIA.titleInfoId)
+                  WHERE A.attributeID = TIA.attributeID AND AH.titleInfoId = TIA.titleInfoId AND AH.ordering = TIA.ordering)
 AND A.attributeText = AH.attribute3;
 
 SELECT * from titleInfoAttribute;
-/********************************************************************************************************************************/
+/********************************************/
 
-/*********** attribute // titleAttribute *************/
-
--- SELECT * FROM akas_tsv;
-
--- Create Table attribute (
--- 	attributeID int AUTO_INCREMENT,
---     attributeText varchar(50),
---     Constraint PK_attributeID Primary Key (attributeID)
--- );
-
--- Create Table titleAttribute (
--- 	titleAttributeID int,
---     titleInfoID int,
---     attributeID int,
---     Constraint PK_titleAttributeID Primary Key (titleAttributeID),
---     Constraint FK_titleInfoID_ta Foreign Key (titleInfoID) REFERENCES titleInfo(titleInfoID),
--- 	Constraint FK_attributeID_ta Foreign Key (attributeID) REFERENCES attribute(attributeID)
--- );
-
--- /*transfer data from tsv to newly corrected table */
--- INSERT INTO attribute (attributeText)
--- SELECT DISTINCT Akas.attributes
--- FROM akas_tsv AS Akas
--- WHERE NOT EXISTS (SELECT * FROM attribute AS A WHERE A.attributeText = Akas.attributes);
-
--- INSERT INTO titleAttribute(titleInfoID, attributeID)
--- SELECT Ti.titleInfoID, A.attributeID
--- FROM attribute AS A, titleInfo AS Ti, akas_tsv AS Akas
--- WHERE Akas.titleID = Ti.titleID
--- AND Akas.ordering = Ti.ordering
--- AND A.attributeText = Akas.attributes;
-
-/********************************************************************************************************************************/
-
-SELECT * FROM akas_tsv;
-
-/*********** mediaType // titleInfoMediaType *************/
+/**** mediaType // titleInfoMediaType ******/
 Create Table mediaType (
 	mediaTypeID int AUTO_INCREMENT,
     mediaTypeText varchar(50),
@@ -283,6 +251,7 @@ Create Table mediaType (
 Create Table titleInfoMediaType (
 	titleInfoMediaTypeID int AUTO_INCREMENT,
     titleInfoID int,
+    ordering int,
     mediaTypeID int,
     Constraint PK_titleInfoMediaTypeID Primary Key (titleInfoMediaTypeID),
     Constraint FK_titleInfoID_tit Foreign Key (titleInfoID) REFERENCES titleInfo(titleInfoID),
@@ -291,14 +260,15 @@ Create Table titleInfoMediaType (
 
 Create Table mediaHelper(
 	titleInfoID int,
+    ordering int,
     media1 varchar(40),
     media2 varchar(40)
 );
 
-INSERT INTO mediaHelper(titleInfoId, media1, media2)
-SELECT titleInfoId, SUBSTRING_INDEX(types, ' ', 1) AS media1,
+INSERT INTO mediaHelper(titleInfoId, ordering, media1, media2)
+SELECT titleInfo.titleInfoID, titleInfo.ordering, SUBSTRING_INDEX(types, ' ', 1) AS media1,
 SUBSTRING_INDEX(types, ' ', -1) AS media2
-FROM akas_tsv JOIN titleInfo ON akas_tsv.titleID = titleInfo.titleId;
+FROM akas_tsv JOIN titleInfo ON (akas_tsv.titleID = titleInfo.titleID AND akas_tsv.ordering = titleinfo.ordering);
 
 SELECT * FROM mediaHelper;
 
@@ -315,21 +285,26 @@ WHERE NOT EXISTS (SELECT * FROM mediaType AS MT WHERE MT.mediaTypeText = MH.medi
 
 SELECT * FROM mediaType;
 
-INSERT INTO titleInfoMediaType(titleInfoID, mediaTypeID)
-SELECT DISTINCT MH.titleInfoId, MT.mediaTypeID
+INSERT INTO titleInfoMediaType(titleInfoID, ordering, mediaTypeID)
+SELECT DISTINCT MH.titleInfoId, MH.ordering, MT.mediaTypeID
 FROM mediaHelper AS MH, mediaType AS MT
-WHERE NOT EXISTS (SELECT TMT.titleInfoID, TMT.mediaTypeID FROM mediaType AS MT, titleInfoMediaType AS TMT
-                  WHERE MT.mediaTypeID = TMT.mediaTypeID AND  MH.titleInfoId = TMT.titleInfoID)
+WHERE NOT EXISTS (SELECT TMT.titleInfoID, TMT.ordering, TMT.mediaTypeID FROM mediaType AS MT, titleInfoMediaType AS TMT
+                  WHERE MT.mediaTypeID = TMT.mediaTypeID AND MH.titleInfoId = TMT.titleInfoID AND MH.ordering = TMT.ordering)
 AND MT.mediaTypeText = MH.media1;
 
-INSERT INTO titleInfoMediaType(titleInfoID, mediaTypeID)
-SELECT DISTINCT MH.titleInfoId, MT.mediaTypeID
+INSERT INTO titleInfoMediaType(titleInfoID, ordering, mediaTypeID)
+SELECT DISTINCT MH.titleInfoId, MH.ordering, MT.mediaTypeID
 FROM mediaHelper AS MH, mediaType AS MT
-WHERE NOT EXISTS (SELECT TMT.titleInfoID, TMT.mediaTypeID FROM mediaType AS MT, titleInfoMediaType AS TMT
-                  WHERE MT.mediaTypeID = TMT.mediaTypeID AND  MH.titleInfoId = TMT.titleInfoID)
+WHERE NOT EXISTS (SELECT TMT.titleInfoID, TMT.ordering, TMT.mediaTypeID FROM mediaType AS MT, titleInfoMediaType AS TMT
+                  WHERE MT.mediaTypeID = TMT.mediaTypeID AND MH.titleInfoId = TMT.titleInfoID AND MH.ordering = TMT.ordering)
 AND MT.mediaTypeText = MH.media2;
 
 SELECT * FROM titleInfoMediaType;
+/********************************************/
+
+
+
+
 /********************************************************************************************************************************/
 
 /*********** KnownFor *************/

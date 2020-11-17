@@ -14,7 +14,7 @@ public class Directors {
 
     private static final String url = "jdbc:mysql://localhost:3306/Practicum2";
     private static final String user = "root";
-    private static final String pass = "";
+    private static final String pass = "5DL5oYhn5a2G";
 
     private static String result;
     private static int mediaIndex;

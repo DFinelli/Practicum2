@@ -1,3 +1,61 @@
+/* 5 */
+UPDATE person
+SET age = deathYear-birthYear;
+
+UPDATE PERSON P INNER JOIN
+(SELECT personID, count(personID) cnt FROM knownFor GROUP BY personID) pcnt USING (personID)
+SET P.numMovies = pcnt.cnt;
+
+/*6*/
+
+DELIMITER $$
+CREATE TRIGGER insert_age
+BEFORE INSERT ON person FOR EACH ROW
+BEGIN
+    SET NEW.age =
+    CASE
+    WHEN NEW.deathYear IS NOT NULL THEN NEW.deathYear - NEW.birthYear
+    ELSE YEAR(CURDATE()) - NEW.birthYear
+    END;
+END$$
+
+
+DELIMITER $$
+CREATE TRIGGER insert_num_movies
+AFTER INSERT ON knownFor FOR EACH ROW
+BEGIN
+UPDATE person
+SET numMovies =
+CASE
+	WHEN numMovies IS NULL THEN 1
+	ELSE (numMovies + 1)
+END
+WHERE person.personId = NEW.personId;
+END$$
+
+/*7*/
+
+CREATE VIEW actorView AS
+SELECT P.PrimaryName, P.age,
+CASE
+	WHEN deathYear IS NOT NULL THEN 'dead'
+    ELSE 'alive'
+END
+AS 'whether dead',
+numMovies AS 'movies known for'
+FROM person AS P;
+
+/*8*/
+
+SELECT E.parentTconst, MAX(E.seasonNumber)
+FROM title AS T, episode AS E
+WHERE T.titleType = "tvSeries"
+AND E.parentTconst = T.titleID
+GROUP BY E.parentTconst;
+
+
+/*9*/
+
 
 DROP PROCEDURE IF EXISTS addActor;
 
@@ -85,3 +143,59 @@ BEGIN
     AND
 	NOT EXISTS (SELECT * FROM knownFor AS KF WHERE KF.personID = personID AND KF.titleID = knownFor4);
 END$$
+
+
+/*10*/
+
+DROP PROCEDURE IF EXISTS deleteActor;
+
+DELIMITER $$
+CREATE PROCEDURE deleteActor(personID varchar(50))
+BEGIN
+    DELETE FROM knownFor AS KF
+    WHERE KF.personID = personID;
+
+    DELETE FROM personprofession AS PP
+    WHERE PP.personID = personID;
+
+    DELETE FROM principals AS PR
+    WHERE PR.personID = personID;
+
+    DELETE FROM directors AS D
+    WHERE D.personID = personID;
+
+    DELETE FROM writers AS W
+    WHERE W.personID = personID;
+
+    DELETE FROM person AS P
+    WHERE P.personID = personID;
+
+END$$
+
+
+/*11*/
+
+SELECT P.primaryName, P.age, Count(*)
+FROM person AS P, rating AS R, principals AS Pr, title AS T
+WHERE R.averageRating > 5
+AND T.titleID = R.titleID
+AND T.titleType = "movie"
+AND Pr.titleID = T.titleID
+AND (Pr.category = "actor" OR Pr.category = "actress")
+AND P.personID = Pr.personID
+GROUP BY P.personID
+HAVING COUNT(*) > 2
+
+
+/*12*/
+
+SELECT * FROM person WHERE primaryName = 'Frank Sinatra';
+/* 0.040 sec / 0.000011 sec */
+
+CREATE INDEX primaryName_index
+ON person(primaryName(40));
+
+SELECT * FROM person WHERE primaryName = 'Frank Sinatra';
+/* # 0.00056 sec / 0.000028 sec  */
+
+
